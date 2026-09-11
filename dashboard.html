@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metric Watch — Anomaly Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --ink: #12151C;
+    --panel: #1A1F29;
+    --panel-line: #2A3140;
+    --paper: #EDEDE4;
+    --paper-dim: #A7ADB8;
+    --amber: #E8A33D;
+    --red: #E2574C;
+    --green: #57B37A;
+    --blue: #6E9FE0;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 48px 28px 96px; }
+
+  header.hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--panel-line);
+    padding-bottom: 28px;
+    margin-bottom: 40px;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  header.hero h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.01em;
+  }
+  header.hero p {
+    margin: 0;
+    color: var(--paper-dim);
+    font-size: 15px;
+    max-width: 46ch;
+  }
+  .hero-meta {
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--paper-dim);
+    line-height: 1.7;
+  }
+  .hero-meta strong { color: var(--paper); font-weight: 500; }
+
+  .status-strip {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 44px;
+    flex-wrap: wrap;
+  }
+  .status-pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    padding: 7px 13px;
+    border: 1px solid var(--panel-line);
+    border-radius: 3px;
+    color: var(--paper-dim);
+  }
+  .status-pill b { color: var(--paper); font-weight: 500; }
+  .status-pill.severe { border-color: var(--red); color: var(--red); }
+  .status-pill.moderate { border-color: var(--amber); color: var(--amber); }
+
+  section.metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1px;
+    background: var(--panel-line);
+    border: 1px solid var(--panel-line);
+    margin-bottom: 56px;
+  }
+  .metric-card {
+    background: var(--panel);
+    padding: 20px 20px 16px;
+    position: relative;
+  }
+  .metric-card .label {
+    font-size: 12.5px;
+    color: var(--paper-dim);
+    text-transform: lowercase;
+    margin-bottom: 4px;
+  }
+  .metric-card .value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 26px;
+    font-weight: 500;
+  }
+  .metric-card .delta { font-size: 12.5px; margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
+  .delta.up { color: var(--green); }
+  .delta.down { color: var(--red); }
+  .metric-card canvas { margin-top: 10px; height: 46px !important; }
+  .metric-card .flag-count {
+    position: absolute;
+    top: 18px; right: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--red);
+  }
+
+  h2.section-title {
+    font-size: 13px;
+    text-transform: lowercase;
+    color: var(--paper-dim);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin: 0 0 20px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--panel-line);
+  }
+
+  .anomaly-list { margin-bottom: 56px; }
+  .anomaly {
+    display: grid;
+    grid-template-columns: 96px 3px 1fr;
+    gap: 0;
+    margin-bottom: 2px;
+  }
+  .anomaly .date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    color: var(--paper-dim);
+    padding: 18px 12px 18px 0;
+    text-align: right;
+  }
+  .anomaly .bar { background: var(--panel-line); }
+  .anomaly.severe .bar { background: var(--red); }
+  .anomaly.moderate .bar { background: var(--amber); }
+  .anomaly .body {
+    background: var(--panel);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .anomaly .headline {
+    font-size: 15.5px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .anomaly .tags {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.05);
+    color: var(--paper-dim);
+  }
+  .tag.sentiment-positive { color: var(--green); }
+  .tag.sentiment-concerning { color: var(--red); }
+  .anomaly .confidence {
+    font-size: 13.5px;
+    color: var(--paper-dim);
+    margin-bottom: 8px;
+  }
+  .anomaly .impact {
+    font-size: 13.5px;
+    color: #C6CAD3;
+    line-height: 1.5;
+    border-left: 2px solid var(--panel-line);
+    padding-left: 12px;
+  }
+
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--paper-dim);
+    font-size: 14px;
+    background: var(--panel);
+    border: 1px dashed var(--panel-line);
+  }
+
+  section.log {
+    margin-bottom: 20px;
+  }
+  table.log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+  }
+  table.log-table th {
+    text-align: left;
+    color: var(--paper-dim);
+    font-weight: 500;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--panel-line);
+    text-transform: lowercase;
+  }
+  table.log-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--ink);
+    color: #C6CAD3;
+  }
+  table.log-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .sev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; }
+  .sev-dot.severe { background: var(--red); }
+  .sev-dot.moderate { background: var(--amber); }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--panel-line);
+    color: var(--paper-dim);
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  @media (max-width: 600px) {
+    .anomaly { grid-template-columns: 62px 3px 1fr; }
+    .anomaly .date { font-size: 11px; padding-right: 8px; }
+    header.hero { flex-direction: column; align-items: flex-start; }
+    .hero-meta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div>
+      <h1>Metric Watch</h1>
+      <p>Automated read of daily business metrics — cleaned, baselined, and checked for anomalies against a rolling 7-day window.</p>
+    </div>
+    <div class="hero-meta">
+      generated <strong id="genDate"></strong><br>
+      <span id="rowsMeta"></span><br>
+      <span id="cleanMeta"></span>
+    </div>
+  </header>
+
+  <div class="status-strip" id="statusStrip"></div>
+
+  <section class="metrics" id="metricCards"></section>
+
+  <section class="anomaly-section">
+    <h2 class="section-title">flagged anomalies</h2>
+    <div class="anomaly-list" id="anomalyList"></div>
+  </section>
+
+  <section class="log">
+    <h2 class="section-title">alert log (all-time)</h2>
+    <table class="log-table">
+      <thead>
+        <tr><th>logged</th><th>date</th><th>metric</th><th>severity</th><th>change</th><th>note</th></tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </section>
+
+  <footer>metric watch · rolling-baseline anomaly detection · z-score + percent-change dual threshold</footer>
+</div>
+
+<script>
+const DATA = {"series": {"revenue": {"dates": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02"], "values": [11897.65, 11652.99, 12464.75, 11408.57, 11423.45, 11423.45, 14114.5, 12397.64, 12062.38, 12046.06, 11926.82, 12294.39, 14096.18, 13500.01, 12926.24, 12621.18, 12012.95, 11841.92, 11690.02, 13831.15, 6519.63, 12732.46, 12932.04, 12911.92, 12075.52, 12754.95, 14243.19, 14171.24, 12148.0, 13286.91, 12435.18, 12913.09, 12729.52, 15100.18, 14580.81, 12740.37, 12450.44, 12752.54, 13922.02, 12884.76, 15413.94, 15372.59, 12913.62, 13510.47, 13170.34]}, "signups": {"dates": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02"], "values": [248.0, 238.0, 246.0, 256.0, 219.0, 245.0, 253.0, 266.0, 248.0, 236.0, 256.0, 273.0, 242.0, 268.0, 262.0, 249.0, 251.0, 264.0, 264.0, 277.0, 271.0, 273.0, 274.0, 240.0, 293.0, 280.0, 265.0, 287.0, 625.0, 259.0, 285.0, 279.0, 283.0, 288.0, 275.0, 288.0, 287.0, 294.0, 291.0, 286.0, 270.0, 312.0, 300.0, 270.0, 311.0]}, "churn_rate": {"dates": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02"], "values": [3.13, 3.53, 3.32, 3.35, 2.93, 3.36, 3.0, 3.01, 3.39, 3.04, 3.33, 2.6, 2.6, 3.4, 3.24, 3.06, 3.59, 3.63, 3.31, 3.53, 3.68, 2.73, 2.61, 3.14, 3.37, 3.24, 3.51, 3.64, 3.16, 3.58, 3.54, 3.25, 3.37, 3.8, 3.2, 11.25, 3.32, 3.28, 3.03, 2.38, 3.18, 2.69, 3.53, 3.4, 3.16]}, "active_users": {"dates": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02"], "values": [8562.0, 8669.0, 8658.0, 8714.0, 8616.0, 8613.0, 8914.0, 8637.0, 8774.0, 8909.0, 8601.0, 8759.0, 8809.0, 8948.0, 8696.0, 8718.0, 8644.0, 8975.0, 8836.0, 8961.0, 9034.0, 9132.0, 8912.0, 9136.0, 9014.0, 9187.0, 9071.0, 9033.0, 9068.0, 8970.0, 9243.0, 9227.0, 9176.0, 9233.0, 9323.0, 8922.0, 9277.0, 9203.0, 9272.0, 9244.0, 9434.0, 9296.0, 9034.0, 9195.0, 9415.0]}}, "anomalies": [{"date": "2026-08-09", "metric": "revenue", "value": 6519.63, "baseline_mean": 12631.9243, "baseline_std": 772.091, "z_score": -7.917, "pct_change": -48.39, "direction": "down", "severity": "severe", "summary": {"headline": "Revenue moved down 48% on 2026-08-09, below its recent 7-period baseline of 12631.9.", "confidence": "This is a large, high-confidence deviation, unlikely to be normal noise.", "impact": "If sustained, this could signal a problem worth investigating \u2014 a broken funnel, a bad deploy, a pricing/billing issue, or an external shock. Recommend checking recent changes (deploys, campaigns, pricing) around 2026-08-09.", "sentiment": "concerning"}}, {"date": "2026-08-10", "metric": "churn_rate", "value": 2.73, "baseline_mean": 3.4343, "baseline_std": 0.2156, "z_score": -3.267, "pct_change": -20.51, "direction": "down", "severity": "moderate", "summary": {"headline": "Churn rate moved down 21% on 2026-08-10, below its recent 7-period baseline of 3.4343.", "confidence": "This is a moderate deviation \u2014 worth a look, but could still be normal variation.", "impact": "If sustained, this could reflect a genuine improvement in churn rate (e.g. a successful campaign, product change, or seasonal tailwind). Consider identifying the driver so it can be repeated or scaled.", "sentiment": "positive"}}, {"date": "2026-08-11", "metric": "churn_rate", "value": 2.61, "baseline_mean": 3.3614, "baseline_std": 0.3266, "z_score": -2.301, "pct_change": -22.35, "direction": "down", "severity": "moderate", "summary": {"headline": "Churn rate moved down 22% on 2026-08-11, below its recent 7-period baseline of 3.3614.", "confidence": "This is a moderate deviation \u2014 worth a look, but could still be normal variation.", "impact": "If sustained, this could reflect a genuine improvement in churn rate (e.g. a successful campaign, product change, or seasonal tailwind). Consider identifying the driver so it can be repeated or scaled.", "sentiment": "positive"}}, {"date": "2026-08-17", "metric": "signups", "value": 625.0, "baseline_mean": 273.1429, "baseline_std": 16.0306, "z_score": 21.949, "pct_change": 128.82, "direction": "up", "severity": "severe", "summary": {"headline": "Signups moved up 129% on 2026-08-17, above its recent 7-period baseline of 273.143.", "confidence": "This is a large, high-confidence deviation, unlikely to be normal noise.", "impact": "If sustained, this could reflect a genuine improvement in signups (e.g. a successful campaign, product change, or seasonal tailwind). Consider identifying the driver so it can be repeated or scaled.", "sentiment": "positive"}}, {"date": "2026-08-24", "metric": "churn_rate", "value": 11.25, "baseline_mean": 3.4143, "baseline_std": 0.2176, "z_score": 36.003, "pct_change": 229.5, "direction": "up", "severity": "severe", "summary": {"headline": "Churn rate moved up 230% on 2026-08-24, above its recent 7-period baseline of 3.4143.", "confidence": "This is a large, high-confidence deviation, unlikely to be normal noise.", "impact": "If sustained, this could signal a problem worth investigating \u2014 a broken funnel, a bad deploy, a pricing/billing issue, or an external shock. Recommend checking recent changes (deploys, campaigns, pricing) around 2026-08-24.", "sentiment": "concerning"}}], "clean_report": {"rows_in": 46, "rows_out": 45, "duplicates_removed": 1, "missing_filled": {"revenue": 1, "signups": 1, "churn_rate": 1, "active_users": 0}, "coercion_failures": {"revenue": 0, "signups": 0, "churn_rate": 1, "active_users": 0}, "dropped_unparseable_dates": 0}, "new_alert_count": 5};
+const LOG = [{"logged_at": "2026-09-06 15:38:51", "date": "2026-08-09", "metric": "revenue", "value": "6519.63", "baseline_mean": "12631.9243", "pct_change": "-48.39", "z_score": "-7.917", "direction": "down", "severity": "severe", "sentiment": "concerning", "headline": "Revenue moved down 48% on 2026-08-09, below its recent 7-period baseline of 12631.9."}, {"logged_at": "2026-09-06 15:38:51", "date": "2026-08-10", "metric": "churn_rate", "value": "2.73", "baseline_mean": "3.4343", "pct_change": "-20.51", "z_score": "-3.267", "direction": "down", "severity": "moderate", "sentiment": "positive", "headline": "Churn rate moved down 21% on 2026-08-10, below its recent 7-period baseline of 3.4343."}, {"logged_at": "2026-09-06 15:38:51", "date": "2026-08-11", "metric": "churn_rate", "value": "2.61", "baseline_mean": "3.3614", "pct_change": "-22.35", "z_score": "-2.301", "direction": "down", "severity": "moderate", "sentiment": "positive", "headline": "Churn rate moved down 22% on 2026-08-11, below its recent 7-period baseline of 3.3614."}, {"logged_at": "2026-09-06 15:38:51", "date": "2026-08-17", "metric": "signups", "value": "625.0", "baseline_mean": "273.1429", "pct_change": "128.82", "z_score": "21.949", "direction": "up", "severity": "severe", "sentiment": "positive", "headline": "Signups moved up 129% on 2026-08-17, above its recent 7-period baseline of 273.143."}, {"logged_at": "2026-09-06 15:38:51", "date": "2026-08-24", "metric": "churn_rate", "value": "11.25", "baseline_mean": "3.4143", "pct_change": "229.5", "z_score": "36.003", "direction": "up", "severity": "severe", "sentiment": "concerning", "headline": "Churn rate moved up 230% on 2026-08-24, above its recent 7-period baseline of 3.4143."}];
+
+document.getElementById('genDate').textContent = new Date().toISOString().slice(0,16).replace('T',' ');
+document.getElementById('rowsMeta').textContent = DATA.clean_report.rows_out + ' rows · ' + Object.keys(DATA.series).length + ' metrics';
+document.getElementById('cleanMeta').textContent = DATA.clean_report.duplicates_removed + ' dupes removed';
+
+// status strip
+const strip = document.getElementById('statusStrip');
+const severeCount = DATA.anomalies.filter(a => a.severity === 'severe').length;
+const modCount = DATA.anomalies.filter(a => a.severity === 'moderate').length;
+function pill(text, cls) {
+  const d = document.createElement('div');
+  d.className = 'status-pill' + (cls ? ' ' + cls : '');
+  d.innerHTML = text;
+  strip.appendChild(d);
+}
+pill(`<b>${DATA.anomalies.length}</b> anomalies flagged`, severeCount ? 'severe' : (modCount ? 'moderate' : ''));
+if (severeCount) pill(`<b>${severeCount}</b> severe`, 'severe');
+if (modCount) pill(`<b>${modCount}</b> moderate`, 'moderate');
+pill(`<b>${DATA.new_alert_count}</b> new since last run`);
+
+// metric cards with sparkline
+const cardsWrap = document.getElementById('metricCards');
+const colors = { revenue: '#6E9FE0', signups: '#57B37A', churn_rate: '#E2574C', active_users: '#E8A33D' };
+
+Object.entries(DATA.series).forEach(([metric, s]) => {
+  const card = document.createElement('div');
+  card.className = 'metric-card';
+  const last = s.values[s.values.length - 1];
+  const prev = s.values[s.values.length - 2];
+  const delta = prev ? ((last - prev) / prev * 100) : 0;
+  const flagCount = DATA.anomalies.filter(a => a.metric === metric).length;
+
+  card.innerHTML = `
+    ${flagCount ? `<div class="flag-count">${flagCount} flagged</div>` : ''}
+    <div class="label">${metric.replace(/_/g, ' ')}</div>
+    <div class="value">${last.toLocaleString(undefined, {maximumFractionDigits: metric === 'churn_rate' ? 2 : 0})}${metric === 'churn_rate' ? '%' : ''}</div>
+    <div class="delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% vs prior day</div>
+    <canvas></canvas>
+  `;
+  cardsWrap.appendChild(card);
+
+  const ctx = card.querySelector('canvas').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: s.dates,
+      datasets: [{
+        data: s.values,
+        borderColor: colors[metric] || '#8892A0',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.25,
+        fill: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false } },
+      elements: { line: { borderJoinStyle: 'round' } }
+    }
+  });
+});
+
+// anomaly list
+const listWrap = document.getElementById('anomalyList');
+if (DATA.anomalies.length === 0) {
+  listWrap.innerHTML = '<div class="empty-state">No anomalies detected in this run — all metrics tracked within their normal baseline range.</div>';
+} else {
+  DATA.anomalies.slice().reverse().forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'anomaly ' + a.severity;
+    el.innerHTML = `
+      <div class="date">${a.date}</div>
+      <div class="bar"></div>
+      <div class="body">
+        <div class="headline">${a.summary.headline}</div>
+        <div class="tags">
+          <span class="tag">${a.metric.replace(/_/g,' ')}</span>
+          <span class="tag">${a.severity}</span>
+          <span class="tag sentiment-${a.summary.sentiment}">${a.summary.sentiment}</span>
+          <span class="tag">z ${a.z_score}</span>
+        </div>
+        <div class="confidence">${a.summary.confidence}</div>
+        <div class="impact">${a.summary.impact}</div>
+      </div>
+    `;
+    listWrap.appendChild(el);
+  });
+}
+
+// log table
+const logBody = document.getElementById('logBody');
+if (LOG.length === 0) {
+  logBody.innerHTML = '<tr><td colspan="6" style="color:#8892A0;">no alerts logged yet</td></tr>';
+} else {
+  LOG.slice().reverse().forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.logged_at}</td>
+      <td>${row.date}</td>
+      <td>${row.metric}</td>
+      <td><span class="sev-dot ${row.severity}"></span>${row.severity}</td>
+      <td>${row.direction === 'up' ? '+' : ''}${row.pct_change}%</td>
+      <td style="color:#8892A0;">${row.headline}</td>
+    `;
+    logBody.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>
