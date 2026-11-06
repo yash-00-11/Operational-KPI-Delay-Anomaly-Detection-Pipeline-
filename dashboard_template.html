@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fulfillment health monitor</title>
+<style>
+:root{
+  --bg:#edf0ef; --panel:#f8faf9; --ink:#16262b; --muted:#5b6b70; --rule:#cdd5d4;
+  --line:#1d6a74; --band:rgba(29,106,116,.13); --crit:#c4372b; --high:#d98324; --med:#b09a1a; --ok:#1d6a74;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#101a1d; --panel:#16252a; --ink:#e6eeee; --muted:#93a5a8; --rule:#2a3d42;
+    --line:#5cc0cb; --band:rgba(92,192,203,.14); --crit:#ff6b5c; --high:#f0a24a; --med:#d8c34a;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 "Avenir Next","Segoe UI",system-ui,sans-serif}
+main{max-width:1120px;margin:0 auto;padding:28px 20px 48px}
+h1{font-size:26px;letter-spacing:-.01em;margin:0 0 4px}
+h2{font-size:17px;margin:0 0 10px}
+.sub{color:var(--muted);margin:0 0 24px;max-width:70ch}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--rule);margin-bottom:18px;overflow-x:auto}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:10px 18px 10px 0;margin-right:22px;
+  text-align:left;color:var(--ink);font:inherit;cursor:pointer;min-width:150px}
+.tab:focus-visible,.row:focus-visible,select:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+.tab[aria-selected=true]{border-bottom-color:var(--line)}
+.tab .name{display:block;font-weight:600}
+.tab .meta{color:var(--muted);font-size:13px}
+.tab .meta b{color:var(--crit);font-weight:600}
+.chartwrap{background:var(--panel);border:1px solid var(--rule);padding:14px 14px 8px;position:relative}
+svg{width:100%;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--muted);font-size:13px;padding:2px 4px 8px}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid var(--line);vertical-align:middle;margin-right:6px}
+.legend .dash{border-top-style:dashed;border-color:var(--muted)}
+.legend .bandk{height:10px;border:0;background:var(--band);}
+.legend .dot{width:10px;height:10px;border-radius:50%;background:var(--crit);border:0}
+.legend .hollow{width:9px;height:9px;border-radius:50%;border:2px solid var(--muted);background:var(--panel)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);padding:6px 9px;font-size:13px;
+  line-height:1.35;white-space:nowrap;display:none;z-index:2}
+.detail{margin:18px 0 6px;padding:14px 16px;border-left:4px solid var(--rule);background:var(--panel);min-height:76px}
+.detail.sev-Critical{border-left-color:var(--crit)} .detail.sev-High{border-left-color:var(--high)} .detail.sev-Medium{border-left-color:var(--med)}
+.detail p{margin:0;max-width:78ch}
+.detail .none{color:var(--muted)}
+.split{display:grid;grid-template-columns:2fr 1fr;gap:32px;margin-top:30px}
+@media(max-width:820px){.split{grid-template-columns:1fr}}
+.logbar{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--rule);padding:4px 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:600;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--rule)}
+td{padding:9px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr.row{cursor:pointer} tr.row:hover td,tr.row.sel td{background:var(--panel)}
+.sev{font-weight:600} .sev.Critical{color:var(--crit)} .sev.High{color:var(--high)} .sev.Medium{color:var(--med)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.facts p{margin:0 0 12px;color:var(--muted)} .facts b{color:var(--ink)}
+.bars{margin:8px 0 14px}
+.bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:14px}
+.bar span:first-child{width:120px;color:var(--muted)}
+.bar .fill{height:14px;background:var(--line)} .bar .fill.dual{background:var(--crit)}
+.bar .n{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:no-preference){.tab{transition:border-color .15s}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Fulfillment health monitor</h1>
+  <p class="sub" id="sub"></p>
+  <div class="tabs" role="tablist" id="tabs"></div>
+
+  <div class="chartwrap" id="chartwrap">
+    <div class="legend" id="legend"></div>
+    <svg id="chart" viewBox="0 0 1000 360" role="img" aria-label="Metric trend with anomaly markers"></svg>
+    <div class="tip" id="tip"></div>
+  </div>
+  <div class="detail" id="detail" aria-live="polite"></div>
+
+  <div class="split">
+    <section>
+      <div class="logbar">
+        <h2>Alert log</h2>
+        <label>Severity <select id="sevfilter"><option value="">All</option><option>Critical</option><option>High</option><option>Medium</option></select></label>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>Metric</th><th>Change</th><th>z</th><th>Severity</th></tr></thead>
+        <tbody id="logbody"></tbody>
+      </table>
+    </section>
+    <section class="facts">
+      <h2>Why two thresholds</h2>
+      <div class="bars" id="bars"></div>
+      <p id="rulecopy"></p>
+      <h2>Data cleaning</h2>
+      <p id="cleancopy"></p>
+    </section>
+  </div>
+</main>
+
+<script>
+const D = __DATA__;
+const keys = Object.keys(D.metrics);
+let current = keys.find(k => D.metrics[k].anomaly.length) || keys[0];
+let selected = null; // {metric, idx}
+const $ = id => document.getElementById(id);
+const fmt = (v, u) => v == null ? "n/a" : v.toLocaleString(undefined, {maximumFractionDigits: 1});
+const dlabel = s => new Date(s + "T00:00:00").toLocaleDateString(undefined, {month: "short", day: "numeric"});
+const sevOf = (r) => r.severity;
+
+function header(){
+  const ds = D.metrics[keys[0]].dates;
+  $("sub").textContent = `${ds.length} days, ${dlabel(ds[0])} to ${dlabel(ds[ds.length-1])}. ` +
+    `A point is flagged only when it is at least ${D.rule.z} standard deviations and ${D.rule.pct}% away from its trailing ${D.rule.window}-day baseline.`;
+}
+
+function tabs(){
+  $("tabs").innerHTML = "";
+  keys.forEach(k => {
+    const m = D.metrics[k], b = document.createElement("button");
+    b.className = "tab"; b.role = "tab"; b.setAttribute("aria-selected", k === current);
+    const n = m.anomaly.length, last = m.values[m.values.length-1];
+    b.innerHTML = `<span class="name">${m.label}</span><span class="meta">${n ? `<b>${n} alert${n>1?"s":""}</b>` : "No alerts"} · latest ${fmt(last)} ${m.unit}</span>`;
+    b.onclick = () => { current = k; selected = null; render(); };
+    $("tabs").appendChild(b);
+  });
+}
+
+function chart(){
+  const m = D.metrics[current], W = 1000, H = 360, L = 56, R = 14, T = 14, B = 34;
+  const n = m.dates.length, x = i => L + (W - L - R) * i / (n - 1);
+  const all = [...m.values, ...m.upper.filter(v => v != null), ...m.lower.filter(v => v != null)];
+  let lo = Math.min(...all), hi = Math.max(...all); const pad = (hi - lo) * .08; lo = Math.max(0, lo - pad); hi += pad;
+  const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  let s = "";
+  for (let t = 0; t <= 4; t++){
+    const v = lo + (hi - lo) * t / 4, yy = y(v);
+    s += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)" stroke-width="1"/>`;
+    s += `<text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="12" fill="var(--muted)">${(hi-lo)>20 ? Math.round(v).toLocaleString() : fmt(v)}</text>`;
+  }
+  for (let i = 0; i < n; i += 7) s += `<text x="${x(i)}" y="${H-10}" text-anchor="middle" font-size="12" fill="var(--muted)">${dlabel(m.dates[i])}</text>`;
+  // band
+  const idx = [...Array(n).keys()].filter(i => m.upper[i] != null);
+  if (idx.length){
+    const up = idx.map(i => `${x(i)},${y(m.upper[i])}`).join(" ");
+    const dn = [...idx].reverse().map(i => `${x(i)},${y(m.lower[i])}`).join(" ");
+    s += `<polygon points="${up} ${dn}" fill="var(--band)"/>`;
+    const bl = idx.map(i => `${x(i)},${y(m.baseline[i])}`).join(" ");
+    s += `<polyline points="${bl}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  }
+  s += `<polyline points="${m.values.map((v,i)=>`${x(i)},${y(v)}`).join(" ")}" fill="none" stroke="var(--line)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  m.filled.forEach(i => s += `<circle cx="${x(i)}" cy="${y(m.values[i])}" r="4.5" fill="var(--panel)" stroke="var(--muted)" stroke-width="2"/>`);
+  m.anomaly.forEach(i => {
+    const sel = selected && selected.metric === current && selected.idx === i;
+    s += `<circle cx="${x(i)}" cy="${y(m.values[i])}" r="${sel ? 9 : 6.5}" fill="var(--crit)" stroke="var(--panel)" stroke-width="2"/>`;
+  });
+  s += `<line id="cursor" y1="${T}" y2="${H-B}" stroke="var(--muted)" stroke-width="1" style="display:none"/>`;
+  s += `<rect id="hit" x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent"/>`;
+  $("chart").innerHTML = s;
+
+  const svg = $("chart"), hit = $("hit"), cur = $("cursor"), tip = $("tip"), wrap = $("chartwrap");
+  const pick = e => {
+    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
+    return Math.max(0, Math.min(n - 1, Math.round((px - L) / (W - L - R) * (n - 1))));
+  };
+  hit.onmousemove = e => {
+    const i = pick(e), r = svg.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    cur.style.display = ""; cur.setAttribute("x1", x(i)); cur.setAttribute("x2", x(i));
+    const base = m.baseline[i];
+    tip.innerHTML = `<b>${dlabel(m.dates[i])}</b><br>${fmt(m.values[i])} ${m.unit}` +
+      (base != null ? `<br>baseline ${fmt(base)}` : "") + (m.filled.includes(i) ? `<br>missing in source, interpolated` : "") +
+      (m.anomaly.includes(i) ? `<br>anomaly` : "");
+    tip.style.display = "block";
+    const left = r.left - wr.left + x(i) / W * r.width + 12;
+    tip.style.left = Math.min(left, wr.width - tip.offsetWidth - 8) + "px";
+    tip.style.top = (r.top - wr.top + y(m.values[i]) / H * r.height - 52) + "px";
+  };
+  hit.onmouseleave = () => { cur.style.display = "none"; tip.style.display = "none"; };
+  hit.onclick = e => { const i = pick(e); const near = m.anomaly.find(a => Math.abs(a - i) <= 1); if (near != null){ selected = {metric: current, idx: near}; render(); } };
+}
+
+function legend(){
+  $("legend").innerHTML = `<span><i></i>Daily value</span><span><i class="dash"></i>7-day baseline</span>` +
+    `<span><i class="bandk"></i>Baseline ± ${D.rule.z} standard deviations</span>` +
+    `<span><i class="dot"></i>Anomaly</span><span><i class="hollow"></i>Filled gap</span>`;
+}
+
+function detail(){
+  const el = $("detail"), m = D.metrics[current];
+  let row = null;
+  if (selected && selected.metric === current) row = D.log.find(r => r.metric === current && r.date === m.dates[selected.idx]);
+  if (!row && m.anomaly.length) row = D.log.find(r => r.metric === current && r.date === m.dates[m.anomaly[0]]);
+  el.className = "detail" + (row ? " sev-" + row.severity : "");
+  el.innerHTML = row ? `<p>${row.summary}</p>` : `<p class="none">No anomalies for ${m.label.toLowerCase()} in this period. Hover the chart to inspect any day.</p>`;
+}
+
+function log(){
+  const f = $("sevfilter").value, body = $("logbody");
+  const rows = D.log.filter(r => !f || r.severity === f).sort((a, b) => b.date.localeCompare(a.date));
+  body.innerHTML = rows.length ? "" : `<tr><td colspan="5" style="color:var(--muted)">No alerts match this filter.</td></tr>`;
+  rows.forEach(r => {
+    const tr = document.createElement("tr"); tr.className = "row"; tr.tabIndex = 0;
+    const m = D.metrics[r.metric], i = m.dates.indexOf(r.date);
+    if (selected && selected.metric === r.metric && selected.idx === i) tr.classList.add("sel");
+    tr.innerHTML = `<td class="num">${dlabel(r.date)}</td><td>${m.label}</td>` +
+      `<td class="num">${r.pct_change > 0 ? "+" : ""}${Math.round(r.pct_change)}%</td><td class="num">${r.z_score.toFixed(1)}</td><td class="sev ${r.severity}">${r.severity}</td>`;
+    const go = () => { current = r.metric; selected = {metric: r.metric, idx: i}; render(); };
+    tr.onclick = go; tr.onkeydown = e => { if (e.key === "Enter") go(); };
+    body.appendChild(tr);
+  });
+}
+
+function facts(){
+  const s = D.stats, mx = Math.max(s.z_only, s.pct_only, s.dual);
+  const bar = (l, v, c) => `<div class="bar"><span>${l}</span><span class="fill ${c||""}" style="width:${v/mx*140}px"></span><span class="n">${v}</span></div>`;
+  $("bars").innerHTML = bar("z-score only", s.z_only) + bar("% change only", s.pct_only) + bar("Both rules", s.dual, "dual");
+  $("rulecopy").innerHTML = `Alerts raised on the same data. A rule on one measure alone flags routine wobble: z-score alone catches tiny moves in steady metrics, and percent change alone catches ordinary swings in noisy ones. Requiring both leaves <b>${s.dual}</b>.`;
+  const c = D.cleaning, filled = Object.values(c.missing_filled).reduce((a, b) => a + b, 0);
+  $("cleancopy").innerHTML = `${c.rows_in} raw rows became ${c.rows_out} daily records: <b>${c.duplicate_rows_dropped}</b> duplicate removed and <b>${filled}</b> missing values filled by interpolation (hollow dots on the chart).`;
+}
+
+function render(){ tabs(); chart(); legend(); detail(); log(); }
+header(); facts(); render();
+$("sevfilter").onchange = log;
+</script>
+</body>
+</html>
