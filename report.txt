@@ -1,0 +1,43 @@
+============================================================
+METRIC WATCH — ANOMALY REPORT
+Generated: 2026-09-06 15:38
+============================================================
+
+DATA QUALITY
+  Rows in / out:        46 -> 45
+  Duplicate rows removed: 1
+  Unparseable dates dropped: 0
+  Missing values filled in 'revenue': 1
+  Missing values filled in 'signups': 1
+  Missing values filled in 'churn_rate': 1
+
+ANOMALIES FLAGGED: 5
+------------------------------------------------------------
+
+[SEVERE] 2026-08-09 — revenue
+  Revenue moved down 48% on 2026-08-09, below its recent 7-period baseline of 12631.9.
+  This is a large, high-confidence deviation, unlikely to be normal noise.
+  Impact: If sustained, this could signal a problem worth investigating — a broken funnel, a bad deploy, a pricing/billing issue, or an external shock. Recommend checking recent changes (deploys, campaigns, pricing) around 2026-08-09.
+
+[MODERATE] 2026-08-10 — churn_rate
+  Churn rate moved down 21% on 2026-08-10, below its recent 7-period baseline of 3.4343.
+  This is a moderate deviation — worth a look, but could still be normal variation.
+  Impact: If sustained, this could reflect a genuine improvement in churn rate (e.g. a successful campaign, product change, or seasonal tailwind). Consider identifying the driver so it can be repeated or scaled.
+
+[MODERATE] 2026-08-11 — churn_rate
+  Churn rate moved down 22% on 2026-08-11, below its recent 7-period baseline of 3.3614.
+  This is a moderate deviation — worth a look, but could still be normal variation.
+  Impact: If sustained, this could reflect a genuine improvement in churn rate (e.g. a successful campaign, product change, or seasonal tailwind). Consider identifying the driver so it can be repeated or scaled.
+
+[SEVERE] 2026-08-17 — signups
+  Signups moved up 129% on 2026-08-17, above its recent 7-period baseline of 273.143.
+  This is a large, high-confidence deviation, unlikely to be normal noise.
+  Impact: If sustained, this could reflect a genuine improvement in signups (e.g. a successful campaign, product change, or seasonal tailwind). Consider identifying the driver so it can be repeated or scaled.
+
+[SEVERE] 2026-08-24 — churn_rate
+  Churn rate moved up 230% on 2026-08-24, above its recent 7-period baseline of 3.4143.
+  This is a large, high-confidence deviation, unlikely to be normal noise.
+  Impact: If sustained, this could signal a problem worth investigating — a broken funnel, a bad deploy, a pricing/billing issue, or an external shock. Recommend checking recent changes (deploys, campaigns, pricing) around 2026-08-24.
+
+------------------------------------------------------------
+New alerts logged this run: 5

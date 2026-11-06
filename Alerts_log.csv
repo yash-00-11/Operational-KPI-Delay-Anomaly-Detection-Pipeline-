@@ -1,0 +1,6 @@
+logged_at,date,metric,value,baseline_mean,pct_change,z_score,direction,severity,sentiment,headline
+2026-09-06 15:38:51,2026-08-09,revenue,6519.63,12631.9243,-48.39,-7.917,down,severe,concerning,"Revenue moved down 48% on 2026-08-09, below its recent 7-period baseline of 12631.9."
+2026-09-06 15:38:51,2026-08-10,churn_rate,2.73,3.4343,-20.51,-3.267,down,moderate,positive,"Churn rate moved down 21% on 2026-08-10, below its recent 7-period baseline of 3.4343."
+2026-09-06 15:38:51,2026-08-11,churn_rate,2.61,3.3614,-22.35,-2.301,down,moderate,positive,"Churn rate moved down 22% on 2026-08-11, below its recent 7-period baseline of 3.3614."
+2026-09-06 15:38:51,2026-08-17,signups,625.0,273.1429,128.82,21.949,up,severe,positive,"Signups moved up 129% on 2026-08-17, above its recent 7-period baseline of 273.143."
+2026-09-06 15:38:51,2026-08-24,churn_rate,11.25,3.4143,229.5,36.003,up,severe,concerning,"Churn rate moved up 230% on 2026-08-24, above its recent 7-period baseline of 3.4143."
