@@ -18,13 +18,12 @@ def test_clean_fills_missing_and_drops_duplicates():
         "shipment_volume": ["100", "N/A", "110", "130"],
     })
     df, meta = p.clean(raw)
-    assert len(df) == 4  # Jan 3 is a missing day and gets reinstated
+    assert len(df) == 4  
     assert not df["shipment_volume"].isna().any()
     assert meta["log"]["duplicate_rows_dropped"] == 1
 
 
 def test_dual_threshold_needs_both_rules():
-    # Stable metric: a tiny move is a big z-score but a small % change.
     s = _series([100, 100.2, 99.8, 100.1, 99.9, 100.0, 100.1, 101.5])
     r = p.detect(s.to_frame("shipment_volume")).iloc[-1]
     assert r["z_flag"] and not r["pct_flag"] and not r["is_anomaly"]
