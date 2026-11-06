@@ -1,14 +1,3 @@
-"""Operational KPI & delay anomaly detection pipeline.
-
-Stages: ingest -> clean -> rolling baseline -> dual-threshold detection
-        -> plain-English summaries -> de-duplicated alert log -> report.
-
-Detection rule (both must hold):
-    |z-score vs trailing 7-day baseline| >= 2.0
-    |percent change vs that baseline|    >= 20%
-
-Usage:  python pipeline.py --input data/raw_metrics.csv
-"""
 from __future__ import annotations
 
 import argparse
@@ -62,7 +51,6 @@ METRICS = {
 }
 
 
-# ---------------------------------------------------------------- ingest/clean
 def load_raw(path: str | Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str)
 
@@ -81,7 +69,7 @@ def clean(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     cols = [c for c in METRICS if c in df.columns]
     for c in cols:
-        df[c] = pd.to_numeric(df[c], errors="coerce")  # "N/A" / blanks -> NaN
+        df[c] = pd.to_numeric(df[c], errors="coerce")  
     df = df.set_index("date").sort_index()[cols]
     df = df.reindex(pd.date_range(df.index.min(), df.index.max(), freq="D"))
     df.index.name = "date"
@@ -93,7 +81,6 @@ def clean(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     return df, {"log": log, "filled_mask": missing_mask}
 
 
-# ------------------------------------------------------------------- detection
 def compute_baseline(series: pd.Series) -> pd.DataFrame:
     """Trailing 7-day mean/std. shift(1) keeps today's value out of its own baseline."""
     past = series.shift(1).rolling(WINDOW_DAYS, min_periods=MIN_PERIODS)
@@ -153,7 +140,6 @@ def build_alerts(results: pd.DataFrame) -> pd.DataFrame:
     return a[cols].round({"value": 2, "baseline": 2, "z_score": 2, "pct_change": 1})
 
 
-# ------------------------------------------------------------------- alert log
 def update_alert_log(alerts: pd.DataFrame, path: str | Path) -> tuple[pd.DataFrame, int]:
     """Append only unseen alerts. Re-running the pipeline never duplicates history."""
     path = Path(path)
@@ -169,7 +155,6 @@ def update_alert_log(alerts: pd.DataFrame, path: str | Path) -> tuple[pd.DataFra
     return log, len(new)
 
 
-# ---------------------------------------------------------------------- report
 def write_report(alerts: pd.DataFrame, stats: dict, path: str | Path) -> None:
     lines = ["# Operations anomaly report", "",
              f"Rule: |z| >= {Z_THRESHOLD} and |change| >= {PCT_THRESHOLD:.0f}% "
