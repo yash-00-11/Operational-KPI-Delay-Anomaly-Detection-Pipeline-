@@ -1,4 +1,3 @@
-"""Builds a self-contained interactive dashboard (output/dashboard.html)."""
 import json
 from pathlib import Path
 
